@@ -50,18 +50,24 @@ def _detect(model, img, imgsz, device):
     return boxes, conf, kp
 
 
-def track_pitcher(model, frames, first_box, imgsz=640, device=0, pad=0.6):
-    """Pose for the pitcher on every frame. Returns (n_frames, 17, 3) keypoints (NaN where lost) and boxes."""
+def track_pitcher(model, frames, first_box, imgsz=640, device=0, crop_w=None):
+    """Pose for the pitcher on every frame. Returns (n_frames, 17, 3) keypoints (NaN where lost) and boxes.
+
+    The crop is a FIXED size (full frame height x crop_w, default square) re-centred on the pitcher each
+    frame. A crop whose shape changes every frame made the ROCm backend rebuild kernels per shape
+    (~0.22 s/frame measured 2026-11-12); a constant shape compiles once.
+    """
     H, W = frames[0].shape[:2]
+    crop_w = min(W, crop_w or H)
     n = len(frames)
     kps = np.full((n, 17, 3), np.nan)
     boxes = np.full((n, 4), np.nan)
     prev = np.array(first_box, float)
     for i, f in enumerate(frames):
-        bw, bh = prev[2] - prev[0], prev[3] - prev[1]
-        cx0 = int(max(0, prev[0] - pad * bw)); cx1 = int(min(W, prev[2] + pad * bw))
-        cy0 = int(max(0, prev[1] - 0.25 * bh)); cy1 = int(min(H, prev[3] + 0.15 * bh))
-        crop = f[cy0:cy1, cx0:cx1]
+        cx = 0.5 * (prev[0] + prev[2])
+        cx0 = int(min(max(0, cx - crop_w / 2), W - crop_w)); cx1 = cx0 + crop_w
+        cy0 = 0
+        crop = f[:, cx0:cx1]
         b, c, k = _detect(model, crop, imgsz, device)
         if len(b) == 0:
             continue
