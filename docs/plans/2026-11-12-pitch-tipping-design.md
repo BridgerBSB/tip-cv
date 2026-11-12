@@ -58,6 +58,21 @@ wrists, elbows, shoulders, hips, knees, ankles, head.
 2. **Pickoffs to first**, opponent starters, whole-season pulls.
 3. **Pitch-type tips** on the same pitchers.
 
+## Results
+
+**2026-11-12 - Mason Miller, runner on 2nd, slider vs four-seam (`scripts/miller_check.py`).**
+- PitchCast (Scott's camera), 244 clips, 0 frames lost: throwing elbow further forward on sliders through
+  the whole set (-1.5 to -0.3 s from MLB first movement). AUC .70 regular season (123 SL / 85 FF), .80
+  postseason; .68 / .69 / .73 / .80 by period; 20 of 24 games; split by game .70 / .72; gap ~1.3 px (Scott
+  ~1.2). At Scott's exact moment (0.2 s before the lift) only .57 vs his .82: on our clips the gap fades as
+  he starts to move. The set window was chosen after seeing the map.
+- 3B pitcher side view, same 244 pitches: nothing (elbow forward AUC .43, 9 of 24 games, best cell failed
+  the split by game). Likely geometry: in the set Miller's chest faces the 3B camera, so an elbow further
+  out in front of his body moves toward that camera, which a 2D image cannot show. PitchCast sees the same
+  move side to side.
+- Consequence: check every camera angle for each pitcher and use the one where the difference shows up.
+  MiLB has only the TV angle.
+
 ## References
 
 Vault: `bsb-brain/projects/pitch-tipping-cv-references.md` (Scott's Miller post, Niesen "Chasing Ghosts",
