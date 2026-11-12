@@ -20,8 +20,12 @@
   Trim each clip to its CF camera segment before measuring.
 - **MLB:** 9-12 angles per event (PITCHCAST, CENTERFIELD, BROADCAST, both PITCHER_SIDEVIEWs, both
   BATTER_SIDEVIEWs, HIGH_HOME, MID_HOME). Camera angles are 6.0 s, 1280x720, 60 fps.
-- **No angle reaches 3-5 s before the set.** Every clip starts ~2.5-3.3 s before release with the pitcher
-  already set. Pre-set behaviour needs full-game video; not available from this API.
+- **No angle reaches 3-5 s before the set.** Every clip opens with the pitcher already set. MLB camera
+  angles put release 4.20 s into the clip (IQR 4.18-4.23, measured by pose on Miller), i.e. ~3.1 s of set
+  before MLB's first-movement stamp. The MiLB broadcast clip measured had release ~3.1 s in. Pre-set
+  behaviour needs full-game video; not available from this API.
+- **Clock check:** the leg lift found from the knee lands +0.09 s after MLB's PITCHER_FIRST_MOVEMENT stamp
+  (IQR +0.09 to +0.13), so the two anchors agree.
 - Pickoffs to first in 40 affiliate games: 235 throws by 104 pitchers (~6 a game). An opponent throws over
   only a few times against us, so pickoff reads need the pitcher's whole season pulled, not just vs Houston.
 
