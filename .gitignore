@@ -1,0 +1,12 @@
+# video, pulled clip lists and derived pose data stay on the laptop (regenerated from the pull)
+data/
+output/
+*.mp4
+*.mov
+*.pt
+weights/
+runs/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.lock
