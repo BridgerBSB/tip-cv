@@ -28,6 +28,33 @@ def load_pulls(paths: list[str]) -> pd.DataFrame:
     return df
 
 
+RUNNER_CHOICES = ["any", "on1b", "on2b", "empty", "1b_only"]
+EVENT_CHOICES = ["pitch", "pickoff", "stepoff"]
+
+
+def filter_events(df: pd.DataFrame, runner: str = "any", events=None, pitcher: int = 0) -> pd.DataFrame:
+    """The ONE event filter, shared by fetch_clips / pose_clips / tell_scan.
+
+    runner: on1b / on2b = that base occupied (others may be too); empty = bases empty;
+            1b_only = runner on first, second AND third open (the pickoff-to-first situation).
+    events: list from EVENT_CHOICES (None or "any" = all three).
+    """
+    if isinstance(events, str):
+        events = [events]
+    b = {c: df[c].fillna(False).astype(bool) for c in ("on1b", "on2b", "on3b")}
+    if pitcher:
+        df = df[df.pitcher_id == pitcher]
+    if events and events != "any" and list(events) != ["any"]:
+        df = df[df.event_type.isin(list(events))]
+    if runner == "empty":
+        df = df[~b["on1b"] & ~b["on2b"] & ~b["on3b"]]
+    elif runner == "1b_only":
+        df = df[b["on1b"] & ~b["on2b"] & ~b["on3b"]]
+    elif runner != "any":
+        df = df[b[runner]]
+    return df
+
+
 def clip_path(row, angle: str) -> str:
     return os.path.join(ROOT, "data", "clips", str(int(row.pitcher_id)), angle,
                         f"{int(row.game_pk)}_{row.play_id}.mp4")
@@ -37,20 +64,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pull", nargs="+", required=True)
     ap.add_argument("--angles", nargs="+", default=["PITCHCAST"])
-    ap.add_argument("--runner", choices=["any", "on1b", "on2b", "empty"], default="any",
-                    help="on1b/on2b = that base occupied (others may be too); empty = bases empty")
-    ap.add_argument("--event", choices=["any", "pitch", "pickoff", "stepoff"], default="any")
+    ap.add_argument("--runner", choices=RUNNER_CHOICES, default="any", help="see filter_events")
+    ap.add_argument("--event", nargs="+", default=["any"], help="pitch / pickoff / stepoff (several allowed)")
+    ap.add_argument("--pitcher", type=int, default=0)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--min-free-gb", type=float, default=8.0)
     a = ap.parse_args()
 
-    df = load_pulls(a.pull)
-    if a.event != "any":
-        df = df[df.event_type == a.event]
-    if a.runner == "empty":
-        df = df[~df.on1b.fillna(False) & ~df.on2b.fillna(False) & ~df.on3b.fillna(False)]
-    elif a.runner != "any":
-        df = df[df[a.runner].fillna(False).astype(bool)]
+    df = filter_events(load_pulls(a.pull), a.runner, a.event, a.pitcher)
     jobs = [(r, ang) for r in df.itertuples() for ang in a.angles
             if isinstance(getattr(r, "url_" + ang, None), str) and getattr(r, "url_" + ang)]
     missing = len(df) * len(a.angles) - len(jobs)

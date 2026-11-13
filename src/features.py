@@ -24,8 +24,44 @@ def _mid(k, a, b):
     return 0.5 * (k[:, KI[a], :2] + k[:, KI[b], :2])
 
 
-def event_features(z, pitch_hand: str, pitched_minus_fm: float | None, grid: np.ndarray, min_conf=0.3):
-    """Return (dict feature -> values on `grid` of t_from_fm, info dict). None if unusable."""
+LOWER = ["l_hip", "r_hip", "l_knee", "r_knee", "l_ankle", "r_ankle"]
+
+
+def pose_first_move(k: np.ndarray, idx: np.ndarray, fps: float, thresh: float = 0.12, hold: int = 3,
+                    set_sec: float = 0.6) -> tuple[int | None, float]:
+    """Sample index where the LOWER body first leaves its set position; None if it never does.
+
+    Set position = median of the first `set_sec` seconds tracked. Moved = any hip/knee/ankle more than
+    `thresh` torso lengths from its set spot for `hold` samples in a row. Lower body only, because a
+    pitcher looks around with his head while set. Same rule for a pitch (leg lift) and a pickoff (step or
+    spin), so the two line up on one clock. Matched MLB's PITCHER_FIRST_MOVEMENT within ~0.1 s on Miller
+    via the knee version (2026-11-12).
+    """
+    sm = _mid(k, "l_shoulder", "r_shoulder"); hm = _mid(k, "l_hip", "r_hip")
+    first = (idx - idx[0]) / fps <= set_sec
+    if first.sum() < 4:
+        return None, np.nan
+    torso = np.nanmedian(np.linalg.norm(sm[first] - hm[first], axis=1))
+    if not np.isfinite(torso) or torso < 20:
+        return None, torso
+    pts = k[:, [KI[p] for p in LOWER], :2]
+    base = np.nanmedian(pts[first], axis=0)
+    disp = np.nanmax(np.linalg.norm(pts - base, axis=2), axis=1) / torso
+    moved = np.nan_to_num(disp, nan=0.0) > thresh
+    for i in range(first.sum(), len(moved) - hold + 1):
+        if moved[i:i + hold].all():
+            return i, torso
+    return None, torso
+
+
+def event_features(z, pitch_hand: str, pitched_minus_fm: float | None, grid: np.ndarray, min_conf=0.3,
+                   anchor: str = "mlb", fwd_sign: float | None = None):
+    """Return (dict feature -> values on `grid`, info dict). None if unusable.
+
+    anchor="mlb":  grid is t_from_fm (MLB PITCHER_FIRST_MOVEMENT, placed in the clip through release).
+    anchor="pose": grid is t_from_move_pose (pose_first_move). Needs no MLB stamp; used for pickoffs,
+                   whose throw is not stamped BALL_WAS_PITCHED.
+    """
     idx = z["frame_idx"].astype(float)
     fps = float(z["fps"])
     k = z["kps"].copy()
@@ -38,22 +74,33 @@ def event_features(z, pitch_hand: str, pitched_minus_fm: float | None, grid: np.
     if np.all(np.isnan(sp)):
         return None, {"why": "no throwing wrist"}
     rel = int(np.nanargmax(sp))
-    if rel >= len(idx) - 1:
-        return None, {"why": "peak wrist speed at the last frame (clip cut before release?)"}
     t_rel = (idx - idx[rel]) / fps
-    if pitched_minus_fm is None or not np.isfinite(pitched_minus_fm):
-        return None, {"why": "no MLB first-movement stamp"}
-    t_fm = t_rel + pitched_minus_fm
+    if anchor == "pose":
+        mv, _ = pose_first_move(k, idx, fps)
+        if mv is None:
+            return None, {"why": "no first move found (pose)"}
+        t_fm = (idx - idx[mv]) / fps
+    else:
+        if rel >= len(idx) - 1:
+            return None, {"why": "peak wrist speed at the last frame (clip cut before release?)"}
+        if pitched_minus_fm is None or not np.isfinite(pitched_minus_fm):
+            return None, {"why": "no MLB first-movement stamp"}
+        t_fm = t_rel + pitched_minus_fm
 
     sm = _mid(k, "l_shoulder", "r_shoulder")
     hm = _mid(k, "l_hip", "r_hip")
     set_mask = (t_fm > -2.0) & (t_fm < -0.3)
+    if set_mask.sum() < 4:
+        return None, {"why": "less than 0.3 s of set before the first move"}
     torso = np.nanmedian(np.linalg.norm(sm[set_mask] - hm[set_mask], axis=1))
     if not np.isfinite(torso) or torso < 20:
         return None, {"why": f"torso {torso}"}
     fa = k[:, KI[front_ankle], 0]
     dx = np.nanmedian(fa[(t_rel > -0.1) & (t_rel < 0.05)]) - np.nanmedian(fa[set_mask])
-    sign = 1.0 if (np.isfinite(dx) and dx >= 0) else -1.0
+    own_sign = 1.0 if (np.isfinite(dx) and dx >= 0) else -1.0
+    # A pickoff strides toward FIRST, not home, so its own stride cannot define "toward home". Callers
+    # comparing pickoffs pass the pitcher's sign from his pitches (same camera) as fwd_sign.
+    sign = own_sign if fwd_sign is None else fwd_sign
 
     feats = {}
     for p in POINTS:
@@ -68,7 +115,7 @@ def event_features(z, pitch_hand: str, pitched_minus_fm: float | None, grid: np.
     up = np.where((t_fm > -1.0) & ((base - fk) / torso > 0.15))[0]
     lift_t_fm = float(t_fm[up[0]]) if len(up) else np.nan
     return feats, {"why": "", "release_frame": int(idx[rel]), "release_t_clip": float(idx[rel] / fps),
-                   "torso_px": float(torso), "fwd_sign": sign, "lift_t_from_fm": lift_t_fm}
+                   "torso_px": float(torso), "fwd_sign": sign, "own_sign": own_sign, "lift_t_from_fm": lift_t_fm}
 
 
 def auc(pos: np.ndarray, neg: np.ndarray) -> float:

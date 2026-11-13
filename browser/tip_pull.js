@@ -13,13 +13,15 @@
  * Columns:
  *   on1b/on2b/on3b, balls_pre/strikes_pre/outs_pre - from the analytics payload's `count`, which is the
  *     state BEFORE the event (the feed's playEvents[].count is AFTER it - do not mix them).
- *   begin_of_play_utc / first_move_utc / ball_pitched_utc - MLB trackedEvents, UTC. Clock anchors.
+ *   begin_of_play_utc / first_move_utc / ball_pitched_utc / ball_released_utc - MLB trackedEvents, UTC.
+ *     Clock anchors. A pitch is stamped BALL_WAS_PITCHED; a pickoff throw is stamped BALL_WAS_RELEASED.
+ *     tracked_times keeps every stamp as NAME=time;... so nothing new is lost.
  *   url_<ANGLE> - one column per known camera; angles_all lists every angle offered, so a new one is visible.
  * MiLB games offer only BROADCAST; MLB games offer 9-12 angles (verified 2026-11-12).
  */
 (function () {
   const ANGLES = ["PITCHCAST","CENTERFIELD","BROADCAST","ALTERNATE_BROADCAST","3B_PITCHER_SIDEVIEW","1B_PITCHER_SIDEVIEW","3B_BATTER_SIDEVIEW","1B_BATTER_SIDEVIEW","HIGH_HOME","MID_HOME"];
-  const BASE = ["game_pk","date","game_type","at_bat_index","event_index","pitch_number","inning","top","event_type","is_pitch","play_id","description","pitch_code","pitch_name","start_speed","bat_side","pitch_hand","batter_id","pitcher_id","balls_pre","strikes_pre","outs_pre","on1b","on2b","on3b","start_time_utc","begin_of_play_utc","first_move_utc","ball_pitched_utc","tracked_events","angles_all"];
+  const BASE = ["game_pk","date","game_type","at_bat_index","event_index","pitch_number","inning","top","event_type","is_pitch","play_id","description","pitch_code","pitch_name","start_speed","bat_side","pitch_hand","batter_id","pitcher_id","balls_pre","strikes_pre","outs_pre","on1b","on2b","on3b","start_time_utc","begin_of_play_utc","first_move_utc","ball_pitched_utc","ball_released_utc","tracked_times","tracked_events","angles_all"];
   const COLS = BASE.concat(ANGLES.map(a => "url_" + a));
   window.__tip2Log = []; window.__tip2Rows = [];
   const log = m => window.__tip2Log.push(m);
@@ -63,7 +65,8 @@
               start_speed: e.pitchData ? e.pitchData.startSpeed : "", bat_side: p.matchup.batSide.code, pitch_hand: p.matchup.pitchHand.code,
               batter_id: p.matchup.batter.id, pitcher_id: p.matchup.pitcher.id, balls_pre: c.balls, strikes_pre: c.strikes, outs_pre: c.outs,
               on1b: c.runnerOn1b, on2b: c.runnerOn2b, on3b: c.runnerOn3b, start_time_utc: e.startTime,
-              begin_of_play_utc: tt("BEGIN_OF_PLAY"), first_move_utc: tt("PITCHER_FIRST_MOVEMENT"), ball_pitched_utc: tt("BALL_WAS_PITCHED"),
+              begin_of_play_utc: tt("BEGIN_OF_PLAY"), first_move_utc: tt("PITCHER_FIRST_MOVEMENT"), ball_pitched_utc: tt("BALL_WAS_PITCHED"), ball_released_utc: tt("BALL_WAS_RELEASED"),
+              tracked_times: te.map(t => t.playEvent + "=" + t.timeStamp).join(";"),
               tracked_events: te.map(t => t.playEvent).join(";"), angles_all: all.join(";")};
             ANGLES.forEach(k => row["url_" + k] = urls[k] || "");
             rows.push(row);
