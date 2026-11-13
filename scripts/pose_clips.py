@@ -25,6 +25,7 @@ sys.path.insert(0, ROOT)
 from scripts.fetch_clips import RUNNER_CHOICES, clip_path, filter_events, load_pulls  # noqa: E402
 from src.pose import _detect, read_frames, track_pitcher  # noqa: E402
 from src.shots import shot_bounds  # noqa: E402
+from src.clips import download  # noqa: E402
 
 
 def pick_pitcher(model, frame, device=0):
@@ -49,23 +50,36 @@ def main():
     ap.add_argument("--max-sec", type=float, default=5.0, help="stop this far into the clip (MLB camera clips: release ~4.3 s in)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--weights", default=os.path.join(ROOT, "weights", "yolo11x-pose.pt"))
+    ap.add_argument("--stream", action="store_true",
+                    help="download each clip that is not on disk, track it, then delete it (keeps the disk empty)")
     a = ap.parse_args()
 
     from ultralytics import YOLO
     model = YOLO(a.weights)
 
     df = filter_events(load_pulls(a.pull), a.runner, a.event, a.pitcher)
-    rows =[r for r in df.itertuples() if os.path.exists(clip_path(r, a.angle))]
+    if a.stream:
+        rows = [r for r in df.itertuples() if isinstance(getattr(r, "url_" + a.angle, None), str)]
+    else:
+        rows = [r for r in df.itertuples() if os.path.exists(clip_path(r, a.angle))]
     if a.limit:
         rows = rows[:a.limit]
-    print(f"{len(df)} events, {len(rows)} with a {a.angle} clip on disk", flush=True)
+    print(f"{len(df)} events, {len(rows)} with a {a.angle} clip {'URL' if a.stream else 'on disk'}", flush=True)
 
     t0 = time.time(); n_done = 0
     for r in rows:
         out = os.path.join(ROOT, "output", "pose", str(int(r.pitcher_id)), a.angle, f"{int(r.game_pk)}_{r.play_id}.npz")
         if os.path.exists(out):
             continue
+        fetched = False
+        if a.stream and not os.path.exists(clip_path(r, a.angle)):
+            try:
+                download(getattr(r, "url_" + a.angle), clip_path(r, a.angle)); fetched = True
+            except Exception as e:  # noqa: BLE001
+                print("FETCH FAIL", r.game_pk, r.play_id, e); continue
         frames, fps = read_frames(clip_path(r, a.angle), max_frames=int(round(a.max_sec * 60)) + 2)
+        if fetched:
+            os.remove(clip_path(r, a.angle))      # frames are in memory; only the pose file is kept
         if not frames:
             print("EMPTY", out); continue
         s0, s1 = 0, len(frames)

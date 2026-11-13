@@ -5,7 +5,11 @@
  * ZAC clicks Sign In (Claude does not submit a password sign-in). Everything else is Claude's.
  *
  * Usage (paste this file through javascript_tool, then):
- *   window.__tip2Run = window.__tip2Pull([pk1, pk2, ...], <pitcher id or 0 for all>, "R", "tip2_<who>.csv"); "started"
+ *   window.__tip2Run = window.__tip2Pull([pk1, pk2, ...], <pitcher id, [ids], or 0 for all>, "R", "tip2_<who>.csv",
+ *                                        {menOn: ["Men_On"]}); "started"
+ *   menOn (optional) keeps only plate appearances that STARTED with that base state (matchup.splits.menOnBase:
+ *   "Empty", "Men_On" = runner on first only, "RISP", "Loaded"), so the gated analytics call is skipped for the
+ *   rest. The row's on1b/on2b/on3b still come from the per-event analytics count.
  *   JSON.stringify(window.__tip2Log.slice(-3))     // progress, one line per game
  * Each call saves one CSV to Downloads. Move it to data/pulls/.
  *
@@ -34,7 +38,9 @@
     }
     return null;
   }
-  window.__tip2Pull = async function (games, pitcherId, gameType, name) {
+  window.__tip2Pull = async function (games, pitcherId, gameType, name, opts) {
+    const want = Array.isArray(pitcherId) ? new Set(pitcherId) : (pitcherId ? new Set([pitcherId]) : null);
+    const menOn = opts && opts.menOn ? new Set(opts.menOn) : null;
     const rows = [];
     for (const pk of games) {
       try {
@@ -42,7 +48,8 @@
         const date = feed.gameData.datetime.officialDate;
         const evs = [];
         feed.liveData.plays.allPlays.forEach(p => (p.playEvents || []).forEach(e => {
-          if (pitcherId && p.matchup.pitcher.id !== pitcherId) return;
+          if (want && !want.has(p.matchup.pitcher.id)) return;
+          if (menOn && !menOn.has(((p.matchup.splits || {}).menOnBase) || "")) return;
           if (!(e.isPitch || e.type === "pickoff" || e.type === "stepoff")) return;
           evs.push({p, e});
         }));
@@ -59,9 +66,12 @@
             ((a && a.video && a.video.playbackGroups) || []).forEach(g => { all.push(g.mediaSourceType); const rd = (g.playbackRenditions || [])[0]; if (rd && rd.playbackUrl) urls[g.mediaSourceType] = rd.playbackUrl; });
             if (Object.keys(urls).length) nUrl++;
             const d = e.details || {};
+            // MiLB: the public feed has no pitch type below AAA; the signed-in analytics payload does (2026-11-13)
+            const ad = (a && a.metaData && a.metaData.stat && a.metaData.stat.play && a.metaData.stat.play.details) || {};
+            const ty = d.type || ad.type || {};
             const row = {game_pk: pk, date, game_type: gameType, at_bat_index: p.atBatIndex, event_index: e.index, pitch_number: e.pitchNumber,
               inning: p.about.inning, top: p.about.isTopInning, event_type: e.type, is_pitch: !!e.isPitch, play_id: e.playId,
-              description: d.description, pitch_code: d.type ? d.type.code : "", pitch_name: d.type ? d.type.description : "",
+              description: d.description, pitch_code: ty.code || "", pitch_name: ty.description || "",
               start_speed: e.pitchData ? e.pitchData.startSpeed : "", bat_side: p.matchup.batSide.code, pitch_hand: p.matchup.pitchHand.code,
               batter_id: p.matchup.batter.id, pitcher_id: p.matchup.pitcher.id, balls_pre: c.balls, strikes_pre: c.strikes, outs_pre: c.outs,
               on1b: c.runnerOn1b, on2b: c.runnerOn2b, on3b: c.runnerOn3b, start_time_utc: e.startTime,

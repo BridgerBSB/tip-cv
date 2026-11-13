@@ -22,9 +22,17 @@ sys.path.insert(0, ROOT)
 from src.clips import download  # noqa: E402
 
 
+# House pitch groups, copied from bsb-wt-bullpen bullpen-report/src/postgame_v2_data.py PITCH_GROUPS
+# (cutter counts as a breaking ball there; keep it that way so our groups read like the apps').
+PITCH_GROUPS = {"FB": ("FF", "FT", "SI"), "BB": ("FC", "SL", "CU", "ST", "SV", "KC", "SC"), "OS": ("CH", "FS", "KN")}
+_GROUP_OF = {c: g for g, cs in PITCH_GROUPS.items() for c in cs}
+
+
 def load_pulls(paths: list[str]) -> pd.DataFrame:
     df = pd.concat([pd.read_csv(p) for p in paths], ignore_index=True)
     assert len(df), "empty pull"
+    df = df.drop_duplicates("play_id")
+    df["pitch_group"] = df.pitch_code.map(_GROUP_OF)            # NaN for pickoffs / step-offs / unknown types
     return df
 
 

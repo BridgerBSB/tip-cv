@@ -50,6 +50,35 @@ def _detect(model, img, imgsz, device):
     return boxes, conf, kp
 
 
+def track_pitcher_batched(model, frames, first_box, imgsz=640, device=0, crop_w=None, batch=32):
+    """Same output as track_pitcher, but ONE crop window for the whole clip (centred on the first box) so
+    every frame goes through the model in batches. The pitcher moves well under half a crop width between
+    the set and release, and the overlap rule still follows him frame to frame."""
+    H, W = frames[0].shape[:2]
+    crop_w = min(W, crop_w or H)
+    cx = 0.5 * (first_box[0] + first_box[2])
+    cx0 = int(min(max(0, cx - crop_w / 2), W - crop_w))
+    crops = [f[:, cx0:cx0 + crop_w] for f in frames]
+    res = []
+    for i in range(0, len(crops), batch):
+        res += model(crops[i:i + batch], device=device, verbose=False, imgsz=imgsz)
+    n = len(frames)
+    kps = np.full((n, 17, 3), np.nan)
+    boxes = np.full((n, 4), np.nan)
+    prev = np.array(first_box, float)
+    for i, r in enumerate(res):
+        if r.boxes is None or len(r.boxes) == 0:
+            continue
+        b = r.boxes.xyxy.cpu().numpy() + np.array([cx0, 0, cx0, 0])
+        k = r.keypoints.data.cpu().numpy(); k[:, :, 0] += cx0
+        ious = np.array([iou(prev, bb) for bb in b])
+        j = int(np.argmax(ious))
+        if ious[j] < 0.2:
+            continue
+        kps[i] = k[j]; boxes[i] = b[j]; prev = b[j]
+    return kps, boxes
+
+
 def track_pitcher(model, frames, first_box, imgsz=640, device=0, crop_w=None):
     """Pose for the pitcher on every frame. Returns (n_frames, 17, 3) keypoints (NaN where lost) and boxes.
 
