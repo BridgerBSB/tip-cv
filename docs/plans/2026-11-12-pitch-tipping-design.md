@@ -73,6 +73,17 @@ wrists, elbows, shoulders, hips, knees, ankles, head.
 - Consequence: check every camera angle for each pitcher and use the one where the difference shows up.
   MiLB has only the TV angle.
 
+**2026-11-13 - pickoffs to first, our three throw-over leaders (TV angle, runner on 1st, 2B and 3B open,
+body-tracking first-move clock, set window -1.0 to -0.1 s; 26 body measures scanned per pitcher).**
+- Dylan Howard (RHP, 46 pickoffs / 312 pitches, 23 games): glove hand further back toward his body while
+  set before a pickoff - AUC .16 (i.e. pitch-side .84), further back in 13 of 14 games with both, halves by
+  game .12 / .19, gap 0.10 torso lengths (~7-9 px, visible). Throwing hand higher: AUC .74, 15 of 18 games,
+  halves .74 / .74. Both steady from 2.0 s before the move to the move.
+- Ryan Verdugo (RHP, 31 / 262, 21 games): throwing hand higher while set before a pickoff - AUC .77, 15 of
+  15 games, halves .76 / .79, gap 0.033 torso (~3 px). Glove hand higher too (.69, 9 of 12).
+- Javier Perez (RHP, 44 / 265, 23 games): nothing that holds (best .63, halves .72 / .50).
+- Not yet done: the blind look (click sheet), and the pitch clock reading at the first move.
+
 ## References
 
 Vault: `bsb-brain/projects/pitch-tipping-cv-references.md` (Scott's Miller post, Niesen "Chasing Ghosts",
