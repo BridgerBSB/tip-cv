@@ -29,8 +29,10 @@ sys.path.insert(0, ROOT)
 from scripts.fetch_clips import RUNNER_CHOICES, filter_events, load_pulls  # noqa: E402
 from src.features import auc, event_features  # noqa: E402
 
-GRID = np.round(np.arange(-2.0, 0.4001, 1 / 30), 4)
+GRID = np.round(np.arange(-2.0, 0.8001, 1 / 30), 4)
 SET_WIN = (-1.0, -0.1)       # seconds before the first move: the pitcher is set, nothing has started
+LIFT_WIN = (0.0, 0.6)        # first move up through the leg lift, before the hands break. A HITTER can still
+                             # read a tell here (CMU's keyframe is the top of the lift); a baserunner cannot.
 
 
 def _stamp_gap(r):
