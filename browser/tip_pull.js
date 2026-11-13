@@ -7,9 +7,12 @@
  * Usage (paste this file through javascript_tool, then):
  *   window.__tip2Run = window.__tip2Pull([pk1, pk2, ...], <pitcher id, [ids], or 0 for all>, "R", "tip2_<who>.csv",
  *                                        {menOn: ["Men_On"]}); "started"
- *   menOn (optional) keeps only plate appearances that STARTED with that base state (matchup.splits.menOnBase:
- *   "Empty", "Men_On" = runner on first only, "RISP", "Loaded"), so the gated analytics call is skipped for the
- *   rest. The row's on1b/on2b/on3b still come from the per-event analytics count.
+ *   opts.preOn1b = true keeps only plate appearances that START with a runner on first (other bases may be
+ *   occupied), so the gated analytics call is skipped for the rest. Bases before a plate appearance = the
+ *   previous play's matchup.postOnFirst/Second/Third in the same half-inning (empty to start a half).
+ *   DO NOT use matchup.splits.menOnBase for this: it describes the bases AFTER the play (2026-11-13: a
+ *   "Men_On" filter returned 2,008 of 2,789 events with the bases empty and 27 pickoffs for a whole staff).
+ *   The row's on1b/on2b/on3b still come from the per-event analytics count (state before that event).
  *   JSON.stringify(window.__tip2Log.slice(-3))     // progress, one line per game
  * Each call saves one CSV to Downloads. Move it to data/pulls/.
  *
@@ -40,16 +43,21 @@
   }
   window.__tip2Pull = async function (games, pitcherId, gameType, name, opts) {
     const want = Array.isArray(pitcherId) ? new Set(pitcherId) : (pitcherId ? new Set([pitcherId]) : null);
-    const menOn = opts && opts.menOn ? new Set(opts.menOn) : null;
+    const preOn1b = !!(opts && opts.preOn1b);
     const rows = [];
     for (const pk of games) {
       try {
         const feed = await fetch(`/api/v1.1/game/${pk}/feed/live`).then(r => r.json());
         const date = feed.gameData.datetime.officialDate;
         const evs = [];
-        feed.liveData.plays.allPlays.forEach(p => (p.playEvents || []).forEach(e => {
+        const plays = feed.liveData.plays.allPlays;
+        plays.forEach((p, pi) => (p.playEvents || []).forEach(e => {
           if (want && !want.has(p.matchup.pitcher.id)) return;
-          if (menOn && !menOn.has(((p.matchup.splits || {}).menOnBase) || "")) return;
+          if (preOn1b) {
+            const q = pi > 0 ? plays[pi - 1] : null;
+            const same = q && q.about.inning === p.about.inning && q.about.isTopInning === p.about.isTopInning;
+            if (!(same && q.matchup.postOnFirst)) return;
+          }
           if (!(e.isPitch || e.type === "pickoff" || e.type === "stepoff")) return;
           evs.push({p, e});
         }));
