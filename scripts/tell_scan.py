@@ -57,18 +57,37 @@ def load(a):
                 if inf.get("own_sign") is not None:
                     signs.append(inf["own_sign"])
         fwd = float(np.sign(np.sum(signs))) or 1.0 if signs else None
-    rows, feats, infos = [], [], []
+    rows, feats, infos, spot = [], [], [], []
     for r in df.itertuples():
         f = paths[r.play_id]
         if not os.path.exists(f):
             infos.append({"play_id": r.play_id, "why": "no pose file"}); continue
-        fe, info = event_features(np.load(f), r.pitch_hand, _stamp_gap(r), GRID, anchor=anchor, fwd_sign=fwd)
+        z = np.load(f)
+        fe, info = event_features(z, r.pitch_hand, _stamp_gap(r), GRID, anchor=anchor, fwd_sign=fwd)
         info["play_id"] = r.play_id
         infos.append(info)
         if fe is None:
             continue
+        b = np.nanmedian(z["boxes"][: max(3, len(z["boxes"]) // 3)], axis=0)       # where he stands while set
+        spot.append(((b[0] + b[2]) / 2 / float(z["width"]), (b[3] - b[1]) / float(z["height"])))
         rows.append(r); feats.append(fe)
     meta = pd.DataFrame([r._asdict() for r in rows])
+    # Shot check (TV clips): within one game the CF camera is fixed, so the pitcher stands in about the same place
+    # at about the same size in every clip. A tracked person off that spot is the wrong shot (batter / catcher /
+    # umpire close-up, another camera) - eye-checked on Cole Tolbert 2026-11-13: 5 of 6 flagged were wrong shots,
+    # 6 of 6 kept were right. Applied to every angle; a fixed MLB camera should lose almost nothing.
+    if len(meta) and getattr(a, "shot_check", True):
+        sp = np.array(spot)
+        meta["_cx"], meta["_h"] = sp[:, 0], sp[:, 1]
+        g = meta.groupby("game_pk")
+        off = ((meta._cx - g._cx.transform("median")).abs() > 0.08) |               ((meta._h / g._h.transform("median")) > 1.25) | ((meta._h / g._h.transform("median")) < 0.8)
+        for pid in meta.play_id[off]:
+            for inf in infos:
+                if inf["play_id"] == pid:
+                    inf["why"] = "off the pitcher's usual spot (wrong TV shot)"
+        keep = ~off.to_numpy()
+        feats = [fe for fe, k in zip(feats, keep) if k]
+        meta = meta[keep].drop(columns=["_cx", "_h"]).reset_index(drop=True)
     names = list(feats[0].keys()) if feats else []
     X = np.stack([np.stack([fe[n] for n in names]) for fe in feats]) if feats else np.zeros((0, 0, len(GRID)))
     return meta, names, X, pd.DataFrame(infos)
