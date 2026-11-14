@@ -43,7 +43,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pull", nargs="+", required=True)
     ap.add_argument("--angle", default="PITCHCAST")
-    ap.add_argument("--pitcher", type=int, default=0)
+    ap.add_argument("--pitcher", type=int, nargs="*", default=[], help="one or more ids, processed in this order")
     ap.add_argument("--runner", choices=RUNNER_CHOICES, default="any", help="see fetch_clips.filter_events")
     ap.add_argument("--event", nargs="+", default=["any"], help="pitch / pickoff / stepoff (several allowed)")
     ap.add_argument("--step", type=int, default=2, help="process every Nth frame (2 = 30 per second)")
@@ -52,29 +52,48 @@ def main():
     ap.add_argument("--weights", default=os.path.join(ROOT, "weights", "yolo11x-pose.pt"))
     ap.add_argument("--stream", action="store_true",
                     help="download each clip that is not on disk, track it, then delete it (keeps the disk empty)")
+    ap.add_argument("--prefetch", type=int, default=6,
+                    help="--stream: clips downloaded ahead in parallel while the GPU works (bounded, never the whole list)")
     a = ap.parse_args()
 
     from ultralytics import YOLO
     model = YOLO(a.weights)
 
-    df = filter_events(load_pulls(a.pull), a.runner, a.event, a.pitcher)
+    df = filter_events(load_pulls(a.pull), a.runner, a.event, 0)
+    if a.pitcher:
+        order = {pid: i for i, pid in enumerate(a.pitcher)}
+        df = df[df.pitcher_id.isin(order)].assign(_o=lambda d: d.pitcher_id.map(order)).sort_values("_o", kind="stable")
     if a.stream:
         rows = [r for r in df.itertuples() if isinstance(getattr(r, "url_" + a.angle, None), str)]
     else:
         rows = [r for r in df.itertuples() if os.path.exists(clip_path(r, a.angle))]
     if a.limit:
         rows = rows[:a.limit]
-    print(f"{len(df)} events, {len(rows)} with a {a.angle} clip {'URL' if a.stream else 'on disk'}", flush=True)
+    out_of = lambda r: os.path.join(ROOT, "output", "pose", str(int(r.pitcher_id)), a.angle, f"{int(r.game_pk)}_{r.play_id}.npz")
+    rows = [r for r in rows if not os.path.exists(out_of(r))]       # resumable: skip what is already tracked
+    print(f"{len(df)} events, {len(rows)} still to track ({a.angle}, {'stream' if a.stream else 'on disk'})", flush=True)
+
+    from concurrent.futures import ThreadPoolExecutor
+    pool = ThreadPoolExecutor(max(1, a.prefetch)) if a.stream else None
+    futs = {}
+
+    def fetch(r):
+        dest = clip_path(r, a.angle)
+        if os.path.exists(dest):
+            return False
+        download(getattr(r, "url_" + a.angle), dest)
+        return True
 
     t0 = time.time(); n_done = 0
-    for r in rows:
-        out = os.path.join(ROOT, "output", "pose", str(int(r.pitcher_id)), a.angle, f"{int(r.game_pk)}_{r.play_id}.npz")
-        if os.path.exists(out):
-            continue
+    for i, r in enumerate(rows):
+        out = out_of(r)
         fetched = False
-        if a.stream and not os.path.exists(clip_path(r, a.angle)):
+        if a.stream:
+            for j in range(i, min(len(rows), i + a.prefetch + 1)):     # keep at most `prefetch` clips in flight
+                if j not in futs:
+                    futs[j] = pool.submit(fetch, rows[j])
             try:
-                download(getattr(r, "url_" + a.angle), clip_path(r, a.angle)); fetched = True
+                fetched = futs.pop(i).result()
             except Exception as e:  # noqa: BLE001
                 print("FETCH FAIL", r.game_pk, r.play_id, e); continue
         frames, fps = read_frames(clip_path(r, a.angle), max_frames=int(round(a.max_sec * 60)) + 2)

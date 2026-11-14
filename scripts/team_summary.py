@@ -31,6 +31,40 @@ COMPARISONS = [("pickoff vs pitch", "event_type", "pickoff", "pitch", ["pitch", 
                ("offspeed vs fastball", "pitch_group", "OS", "FB", ["pitch"], [("set", SET_WIN), ("leg lift", LIFT_WIN)])]
 
 
+def _best_auc(V, isa, isb):
+    """Largest |AUC - .5| over the columns of V (events x measures). NaN-safe, ranks per column."""
+    from scipy.stats import rankdata
+    best = 0.0
+    for j in range(V.shape[1]):
+        v = V[:, j]; ok = np.isfinite(v)
+        a, b = ok & isa, ok & isb
+        na, nb = a.sum(), b.sum()
+        if na < 2 or nb < 2:
+            continue
+        r = rankdata(v[a | b]); ia = a[a | b]
+        au = (r[ia].sum() - na * (na + 1) / 2) / (na * nb)
+        best = max(best, abs(au - 0.5))
+    return best
+
+
+def chance_p(Vs, isa, isb, games, n_perm=300, seed=0):
+    """How often shuffled labels (within each game) give a best measure at least this strong.
+    Vs: list of (events x measures) matrices, one per window - the max is taken over all of them, so the
+    number of measures scanned is paid for here."""
+    rng = np.random.default_rng(seed)
+    V = np.hstack(Vs)
+    obs = _best_auc(V, isa, isb)
+    lab = np.where(isa, 1, np.where(isb, 0, -1))
+    idx_by_game = [np.where((games == g) & (lab >= 0))[0] for g in np.unique(games)]
+    hits = 0
+    for _ in range(n_perm):
+        l2 = lab.copy()
+        for ix in idx_by_game:
+            l2[ix] = rng.permutation(l2[ix])
+        hits += _best_auc(V, l2 == 1, l2 == 0) >= obs - 1e-12
+    return (hits + 1) / (n_perm + 1)
+
+
 def one(pull, pitcher, comp):
     title, col, va, vb, events, windows = comp
     ns = argparse.Namespace(pull=pull, angle="BROADCAST", pitcher=pitcher, runner="1b_only", event=events, anchor="pose")
@@ -43,9 +77,11 @@ def one(pull, pitcher, comp):
     Xc = center(meta, X)
     games = sorted(meta.game_pk.unique()); h1 = meta.game_pk.isin(games[0::2]).to_numpy()
     best = None
+    Ss = []
     for wname, (w0, w1) in windows:
         win = (GRID >= w0) & (GRID <= w1)
         S = np.nanmean(Xc[:, :, win], axis=2)
+        Ss.append(S)
         for f, n in enumerate(names):
             v = S[:, f]
             a_ = auc(v[isa], v[isb])
@@ -60,7 +96,8 @@ def one(pull, pitcher, comp):
            "auc_even_games": auc(v[isa & ~h1], v[isb & ~h1]),
            "games_same_way": (wn if a_ >= 0.5 else gn - wn), "games_both": gn,
            "gap_torso": float(np.nanmedian(v[isa]) - np.nanmedian(v[isb])),
-           "measures_scanned": len(names) * len(windows)}
+           "measures_scanned": len(names) * len(windows),
+           "chance_p": chance_p(Ss, isa, isb, meta.game_pk.to_numpy())}
     if title == "pickoff vs pitch":
         d = []
         for _, gix in meta.groupby(["game_pk", "at_bat_index"]).indices.items():
@@ -94,7 +131,7 @@ def main():
                 if "auc" in r:
                     print(f"{pid} {r['hand']} {r['comparison']:22s} {r['n_a']:3d} vs {r['n_b']:3d} | {r['best_measure']:13s} {r['window']:8s} "
                           f"AUC {r['auc']:.2f} (halves {r['auc_odd_games']:.2f} / {r['auc_even_games']:.2f}) "
-                          f"same way in {r['games_same_way']} of {r['games_both']} games"
+                          f"same way in {r['games_same_way']} of {r['games_both']} games | chance {r['chance_p']:.3f}"
                           + (f" | same at-bat {r['same_ab_same_way']} of {r['same_ab']}" if "same_ab" in r else ""), flush=True)
     out = os.path.join(ROOT, "output", "scan", f"{a.label}_summary.csv")
     pd.DataFrame(rows).to_csv(out, index=False)
