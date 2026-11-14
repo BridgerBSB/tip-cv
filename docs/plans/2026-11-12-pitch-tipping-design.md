@@ -84,6 +84,25 @@ body-tracking first-move clock, set window -1.0 to -0.1 s; 26 body measures scan
 - Javier Perez (RHP, 44 / 265, 23 games): nothing that holds (best .63, halves .72 / .50).
 - Not yet done: the blind look (click sheet), and the pitch clock reading at the first move.
 
+**2026-11-13 - Salem RidgeYaks (BOS Single-A, 21 active pitchers), runner on 1st only, TV angle, with the
+wrong-shot check (clip dropped when the tracked person is off the pitcher's usual spot in that game) and a
+within-game label shuffle (300x) on the best of all measures scanned. 44 comparisons; 7 at chance <= .01.**
+- Cole Tolbert (R) pickoff vs pitch: before a pickoff his glove-side hip sits further back - on video he has
+  not turned fully into his sideways set (back toward the CF camera). AUC .09, halves .08/.12, 9 of 10 games,
+  same at-bat 9 of 10, 11 pickoffs after the shot check (16 before), chance .003.
+- Harry Blum (R): breaking vs fastball, throwing hand lower while set (.20, 24 of 27 games); changeup vs
+  fastball, glove hand higher while set (.76, 13 of 16). Both chance .003.
+- Ethan Walker (L): breaking vs fastball, throwing hand further back while set (.23, 14 of 14); changeup vs
+  fastball, throwing hand lower while set (.08, 9 of 11). Both chance .003.
+- Wuilliams Rodriguez (R): throwing-side hip higher during the leg lift on changeups (.83) and breaking balls
+  (.73) - lift-window, may be a tempo difference; not yet checked.
+- Nicolas De La Cruz (L): breaking vs fastball, throwing elbow higher while set (.71, 21 of 24), chance .013.
+- Our three after the shot check: Howard pickoff (throwing elbow further back, 17 of 18 games, same at-bat 31 of
+  33, chance .003) and Howard breaking ball (glove-side elbow during the lift, 22 of 23, chance .003); Verdugo
+  pickoff (15 of 15, chance .023); Perez nothing.
+- Data facts learned: ~1 in 5 MiLB TV clips shows the wrong shot at the key moment; Stats API
+  `matchup.splits.menOnBase` is the state AFTER the play; MiLB pitch type only in the signed-in payload.
+
 ## References
 
 Vault: `bsb-brain/projects/pitch-tipping-cv-references.md` (Scott's Miller post, Niesen "Chasing Ghosts",
