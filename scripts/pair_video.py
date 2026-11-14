@@ -107,6 +107,8 @@ def main():
     ap.add_argument("--label", required=True)
     ap.add_argument("--pairs", type=int, default=3)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--speeds", nargs="+", type=float, default=[1.0, 0.5],
+                    help="playback speeds to write; 1.0 = real time (the shared clock is 30 steps a second)")
     a = ap.parse_args()
     ns = argparse.Namespace(pull=a.pull, angle="BROADCAST", pitcher=a.pitcher, runner="1b_only", event=a.event, anchor="pose")
     meta, names, X, info = load(ns)
@@ -140,19 +142,22 @@ def main():
                     (10, 58), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (30, 30, 30), 1, cv2.LINE_AA)
     frames = [np.vstack([title] + [r[j] for r in rows]) for j in range(n)]
     import imageio_ffmpeg
-    out = os.path.join(ROOT, "output", "video", f"{a.label}.mp4")
-    os.makedirs(os.path.dirname(out), exist_ok=True)
     H, W = frames[0].shape[:2]
-    w = imageio_ffmpeg.write_frames(out, (W, H), fps=15, codec="libx264", pix_fmt_out="yuv420p", macro_block_size=8,
-                                    output_params=["-crf", "20"])
-    w.send(None)
-    for f in frames:
-        w.send(np.ascontiguousarray(f[:, :, ::-1]))
-    w.close()
+    for sp in a.speeds:
+        tag = "normal" if sp == 1.0 else f"{sp:g}x"
+        out = os.path.join(ROOT, "output", "video", f"{a.label}_{tag}.mp4")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        w = imageio_ffmpeg.write_frames(out, (W, H), fps=30 * sp, codec="libx264", pix_fmt_out="yuv420p",
+                                        macro_block_size=8, output_params=["-crf", "20"])
+        w.send(None)
+        for f in frames:
+            w.send(np.ascontiguousarray(f[:, :, ::-1]))
+        w.close()
+        print("wrote", out)
     still_t = -0.5 if a.window == "set" else 0.35
     still = os.path.join(ROOT, "output", "video", f"{a.label}_still.jpg")
     cv2.imwrite(still, frames[int(np.argmin(np.abs(GRIDV - still_t)))])
-    print("wrote", out, f"{W}x{H}, {n} frames at 15 fps (half speed), {len(rows)} at-bats", "| still", still)
+    print(f"{W}x{H}, {n} frames, {len(rows)} at-bats | still", still)
 
 
 if __name__ == "__main__":
