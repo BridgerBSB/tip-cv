@@ -106,4 +106,8 @@ within-game label shuffle (300x) on the best of all measures scanned. 44 compari
 ## References
 
 Vault: `bsb-brain/projects/pitch-tipping-cv-references.md` (Scott's Miller post, Niesen "Chasing Ghosts",
-Jeremy Park ViTPose+ demo).
+Jeremy Park ViTPose+ demo, CMU MSCV F20 glove-patch probe, Bauer short, Ben Kite's Megill curveball tell).
+
+Kite's Megill tell (Nov 14 2026) is the throwing hand sitting higher and DEEPER in the glove before curveballs,
+1.0 s before the top of the lift: a look at the glove, not a body point. Our scan reads body points only, so
+it can catch the "higher" half at most. Megill is MLB, so he is the test of whether we see a glove-hand tell.
