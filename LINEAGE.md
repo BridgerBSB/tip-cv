@@ -6,10 +6,12 @@
 
 ---
 
-## 2026-11-17 - Moved to the Astros GitHub (Baseball-Operations/tip-cv) so Clayton can work on it
+## 2026-11-17 - Moved to the Astros GitHub (zbridger_astros/tip-cv) so Clayton can work on it
 
-**What changed:** the repo now lives at `Baseball-Operations/tip-cv` (private, Astros org) and that is
-`origin`. The old personal copy `BridgerBSB/tip-cv` is the `personal` remote, no longer pushed to.
+**What changed:** the repo now lives at `zbridger_astros/tip-cv` (private, Zac's Astros account) and that
+is `origin`. The old personal copy `BridgerBSB/tip-cv` is the `personal` remote, no longer pushed to.
+A copy made first at `Baseball-Operations/tip-cv` is NOT used (Zac wanted his own account; org members
+cannot transfer or delete org repos, so an org owner removes it).
 Added `requirements.txt` and a new-machine setup in the README; `scripts/miller_check.py` no longer
 hard-codes Zac's path. Video and pose data still never go in git.
 
