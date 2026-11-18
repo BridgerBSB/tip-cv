@@ -2,7 +2,7 @@
 slider vs four-seam, runner on 2nd, PitchCast. Window chosen AFTER seeing the AUC map (2026-11-12).
 Result 2026-11-12: reg AUC .70, post .80, 20 of 24 games, split-half by game .70 / .72, gap 1.3 px."""
 import sys, os, numpy as np, pandas as pd
-sys.path.insert(0, r"C:\Users\Owner\tip-cv"); sys.argv = ["x", "--pull", "data/pulls/tip2_miller_2026_reg.csv", "data/pulls/tip2_miller_2026_post.csv",
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))); sys.argv = ["x", "--pull", "data/pulls/tip2_miller_2026_reg.csv", "data/pulls/tip2_miller_2026_post.csv",
   "--angle", "PITCHCAST", "--pitcher", "695243", "--runner", "on2b", "--a", "Slider", "--b", "Four-Seam Fastball", "--label", "x"]
 import argparse, warnings; warnings.filterwarnings("ignore")
 from scripts.tell_scan import load, center, GRID

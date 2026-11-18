@@ -1,0 +1,14 @@
+# tip-cv - versions this was built and checked on (Python 3.12, Nov 2026).
+# torch: install the build for YOUR machine first (CPU, NVIDIA CUDA or AMD ROCm),
+# from https://pytorch.org/get-started/locally/ - then `pip install -r requirements.txt`.
+torch>=2.9
+torchvision>=0.24
+ultralytics==8.4.174
+opencv-python==5.0.0.93
+numpy==2.5.3
+pandas==3.0.6
+scipy==1.18.1
+matplotlib==3.11.2
+# Only scripts/pair_video.py needs this, and it runs a bundled ffmpeg.exe, which
+# Astros work laptops block. Make pair videos on a personal laptop.
+imageio-ffmpeg==0.7.0

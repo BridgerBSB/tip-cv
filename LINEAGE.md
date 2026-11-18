@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-11-17 - Moved to the Astros GitHub (Baseball-Operations/tip-cv) so Clayton can work on it
+
+**What changed:** the repo now lives at `Baseball-Operations/tip-cv` (private, Astros org) and that is
+`origin`. The old personal copy `BridgerBSB/tip-cv` is the `personal` remote, no longer pushed to.
+Added `requirements.txt` and a new-machine setup in the README; `scripts/miller_check.py` no longer
+hard-codes Zac's path. Video and pose data still never go in git.
+
 ## 2026-11-15 - Click sheet v1 is the wrong test; v2 = learn-then-test with clips
 
 **What changed:** Zac opened `output/blind/tip_blind_click_sheet.html` (38 same-at-bat still pairs) and could not
